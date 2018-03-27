@@ -65,89 +65,89 @@ One process is continuously reading (read_mem) and one process is writing one ti
 Problem: The read process is not getting the values of the writer
 
 // read_mem.c
-#include <stdio.h>
-#include <errno.h>
-#include <sys/mman.h>
-#include "ashmem.h"
+	#include <stdio.h>
+	#include <errno.h>
+	#include <sys/mman.h>
+	#include "ashmem.h"
 
-#define SHM_NAME "test_mem"
-int main(int argc, char **argv) {
-    int shID = ashmem_create_region(SHM_NAME, 2);
-    if (shID < 0)
-    {
-        perror("ashmem_create_region failed\n");
-        return 1;
-    }
-    // right here /dev/ashmem/test_mem is deleted
-    printf("ashmem_create_region: %d\n", shID);
-    char *sh_buffer = (char*)mmap(NULL, 2, PROT_READ | PROT_WRITE, MAP_SHARED, shID, 0);
-    if (sh_buffer == (char*)-1)
-    {
-        perror("mmap failed");
-        return 1;
-    }
-    printf("PID=%d", getpid());
-    do
-    {
-        printf("VALUE = 0x%x\n", sh_buffer[0]);
-    }
-    while (getchar());
-    return 0;
-}
+	#define SHM_NAME "test_mem"
+	int main(int argc, char **argv) {
+	    int shID = ashmem_create_region(SHM_NAME, 2);
+	    if (shID < 0)
+	    {
+		perror("ashmem_create_region failed\n");
+		return 1;
+	    }
+	    // right here /dev/ashmem/test_mem is deleted
+	    printf("ashmem_create_region: %d\n", shID);
+	    char *sh_buffer = (char*)mmap(NULL, 2, PROT_READ | PROT_WRITE, MAP_SHARED, shID, 0);
+	    if (sh_buffer == (char*)-1)
+	    {
+		perror("mmap failed");
+		return 1;
+	    }
+	    printf("PID=%d", getpid());
+	    do
+	    {
+		printf("VALUE = 0x%x\n", sh_buffer[0]);
+	    }
+	    while (getchar());
+	    return 0;
+	}
 
 // write_mem.c
-#include <stdio.h>
-#include <errno.h>
-#include <sys/mman.h>
-#include "ashmem.h"
+	#include <stdio.h>
+	#include <errno.h>
+	#include <sys/mman.h>
+	#include "ashmem.h"
 
-#define SHM_NAME "test_mem"
-int main(int argc, char **argv) {
-    int shID = ashmem_create_region(SHM_NAME, 2);
-    if (shID < 0)
-    {
-        perror("ashmem_create_region failed\n");
-        return 1;
-    }
-    printf("ashmem_create_region: %d\n", shID);
-    char *sh_buffer = (char*)mmap(NULL, 2, PROT_READ | PROT_WRITE, MAP_SHARED, shID, 0);
-    if (sh_buffer == (char*)-1)
-    {
-        perror("mmap failed");
-        return 1;
-    }
-    printf("PID=%d\n", getpid());
-    int ch = getchar();
-    sh_buffer[0] = ch;
-    printf("Written 0x%x\n", ch);
-    munmap(sh_buffer, 2);
-    close(shID);
-    return 0;
-}
+	#define SHM_NAME "test_mem"
+	int main(int argc, char **argv) {
+	    int shID = ashmem_create_region(SHM_NAME, 2);
+	    if (shID < 0)
+	    {
+		perror("ashmem_create_region failed\n");
+		return 1;
+	    }
+	    printf("ashmem_create_region: %d\n", shID);
+	    char *sh_buffer = (char*)mmap(NULL, 2, PROT_READ | PROT_WRITE, MAP_SHARED, shID, 0);
+	    if (sh_buffer == (char*)-1)
+	    {
+		perror("mmap failed");
+		return 1;
+	    }
+	    printf("PID=%d\n", getpid());
+	    int ch = getchar();
+	    sh_buffer[0] = ch;
+	    printf("Written 0x%x\n", ch);
+	    munmap(sh_buffer, 2);
+	    close(shID);
+	    return 0;
+	}
 
 Results:
 -------
 This is the output:
 Reading
 
-$ ./read_mem
-ashmem_create_region: 3
-PID=29655
-VALUE = 0x0
-Writing
+	$ ./read_mem
+	ashmem_create_region: 3
+	PID=29655
+	VALUE = 0x0
+	Writing
 
-$ ./write_mem
-ashmem_create_region: 3
-PID=29691
-A
-Written 0x41
-Reading again VALUE = 0x0 (by pressing return)
+	$ ./write_mem
+	ashmem_create_region: 3
+	PID=29691
+	A
+	Written 0x41
+	Reading again VALUE = 0x0 (by pressing return)
 
-Watching the maps of the reader:
-$ cat /proc/29655/maps | grep test_mem
-b6ef5000-b6ef6000 rw-s 00000000 00:04 116213     /dev/ashmem/test_mem (deleted)
+	Watching the maps of the reader:
+	$ cat /proc/29655/maps | grep test_mem
+	b6ef5000-b6ef6000 rw-s 00000000 00:04 116213     /dev/ashmem/test_mem (deleted)
 
-as you can see test_mem is deleted WHILE read_mem is still alive.
+	as you can see test_mem is deleted WHILE read_mem is still alive.
 
 Answer:
 -------
