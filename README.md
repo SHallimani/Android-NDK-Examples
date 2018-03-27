@@ -65,12 +65,12 @@ One process is continuously reading (read_mem) and one process is writing one ti
 Problem: The read process is not getting the values of the writer
 
 // read_mem.c
+
+	#define SHM_NAME "test_mem"
 	#include <stdio.h>
 	#include <errno.h>
 	#include <sys/mman.h>
 	#include "ashmem.h"
-
-	#define SHM_NAME "test_mem"
 	int main(int argc, char **argv) {
 	    int shID = ashmem_create_region(SHM_NAME, 2);
 	    if (shID < 0)
@@ -96,12 +96,12 @@ Problem: The read process is not getting the values of the writer
 	}
 
 // write_mem.c
+
+	#define SHM_NAME "test_mem"
 	#include <stdio.h>
 	#include <errno.h>
 	#include <sys/mman.h>
 	#include "ashmem.h"
-
-	#define SHM_NAME "test_mem"
 	int main(int argc, char **argv) {
 	    int shID = ashmem_create_region(SHM_NAME, 2);
 	    if (shID < 0)
