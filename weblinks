@@ -1,6 +1,8 @@
 https://groups.google.com/forum/#!msg/android-porting/MXR9eIAJxKU/XTzpjeKAMsMJ
 https://gerardnico.com/linux/system_v_ipc
 https://elinux.org/Android_Kernel_Features
+https://android.googlesource.com/platform/ndk/+/4e159d95ebf23b5f72bb707b0cb1518ef96b3d03/docs/system/libc/SYSV-IPC.TXT
+https://groups.google.com/forum/#!msg/android-framework/0_JCNWN17_o/1-ZMKYyduwYJ
 
 Android does not support System V IPCs, i.e. the facilities provided by the
 following standard Posix headers:
